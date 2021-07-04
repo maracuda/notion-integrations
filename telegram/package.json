@@ -23,7 +23,6 @@
   },
   "homepage": "https://github.com/astatsegre/telegram-notion-product-list#readme",
   "dependencies": {
-    "@notionhq/client": "0.1.9",
-    "telegraf": "4.3.0"
+    "@notionhq/client": "0.1.9"
   }
 }
