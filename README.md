@@ -1,2 +1,2 @@
-# telegram-notion-product-list
-Telegram bot for product list in Notion
+# telegram-integrations
+Cloud functions for filling Notion lists usinng Telegram and Yandex Alice
