@@ -30,11 +30,17 @@ const addToList = (notion, item) => {
 
 module.exports.handler = async (event, context) => {
     const { request, session, version, meta } = event;
+
+    // Пример быстрого запуска навыка: "Алиса, попроси {название навыка} {входные данные для навыка}".
+    // Алиса запустит навык и сразу передаст в него входные параметры.
+    const isFastSkillCall = request.original_utterance && session.new
+
     let response = {
-        end_session: false
+        end_session: isFastSkillCall // После быстрого запуска сразу завершаем навык. Несколько раз было неожиданно, что воспользовался навыком.
+        // Через 5 минут ставлю таймер, а я, оказывается, всё еще в навыке.
     }
     if (!request.original_utterance || request.original_utterance === 'ping') {
-        response.text = 'Скажи, что добавить в Notion',
+        response.text = 'Скажи, что добавить в Notion'
         response.tts = 'Скажи , что добавить в ноушн'
         return {version, session, response}
     }
