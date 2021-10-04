@@ -1,166 +1,317 @@
 const { Client } = require("@notionhq/client");
 
-const PAGE_ID = process.env.PAGE_ID;
-const NOTION_TOKEN = process.env.NOTION_TOKEN;
-const SETTING_UP = {
-  STEP_0: 0,
-  STEP_1: 1,
-  STEP_2: 2,
-  STEP_3: 3,
-  STEP_4: 4,
-  STEP_5: 5,
-  STEP_6: 6,
-  STEP_7: 7,
-}
-const SETTING_UP_TEXT = {
-  STEP_0: 'Чтобы воспользоваться навыком, его нужно настроить. Для этого нужно запустить навык через телефон или компьютер. Это займёт 5-10 минут. Готовы?',
-  STEP_1: 'Отлично! У вас есть аккаунт в Notion?',
-  STEP_1_1: 'Нужно зарегистрироваться в Notion, чтобы продолжить',
-  STEP_2: 'Перейдите на страницу интеграций Notion, а там: \n1. Нажмите кнопку "New Integration\n' +
-    '2. Введите имя интеграции (например, "Alice")\n' +
-    '3. Нажмите "Submit"',
-  STEP_3: 3,
-  STEP_4: 4,
-  STEP_5: 5,
-  STEP_6: 6,
-  STEP_7: 7,
-}
-const GO = 'Поехали!';
-const LATER = 'Настрою потом';
-const YES = 'Да';
-const NO = 'Нет';
-const SAY_SETTING_TO_SET = 'Если решите настроить навык, скажите "Настроить навык"'
-const I_GO_REGISTER = 'Пойду зарегистрируюсь';
-const I_REGISTERED = 'Я зарегистрировался';
-const NEXT = 'Дальше';
-const NOTION_INTEGRATIONS = 'Перейти на страницу интеграций Notion';
-const DONE_NEXT = 'Сделал. Поехали дальше';
+const INITIAL_STEP = 0;
+const HERE_INSTRUCTION_STEP = 1;
+const SETTING_UP_TOKEN_AND_ID_STEP = 2;
+const IS_IT_TOKEN_STEP = 3;
+const TOKEN_SAVED_STEP = 4;
+const ARTICLE_ID_SAVED_STEP = 5;
+const IS_IT_ARTICLE_ID_STEP = 6;
 
-const addToList = (notion, item) => {
-    return notion.blocks.children.append({
-      block_id: PAGE_ID,
-      children: [
-        {
-          object: "block",
-          type: "to_do",
-          to_do: {
-            text: [
-              {
-                type: "text",
-                text: {
-                  content: item,
-                },
+// dialog's texts
+const HELP_TXT =
+  "Через меня можно голосом наполнять списки в Notion. Но для начала работы меня нужно настроить. Для настройки вам понадобится аккаунт в Notion. \n" +
+  'Чтобы не заходя в навык добавить в список, например, молоко, скажите Алисе: "Попроси добавить в список молоко"\n' +
+  "Чтобы сбросить настройки навыка, пришлите мне слово reset с маленькой буквы.\n" +
+  "Если есть непреодолимые проблемы, напишите мне в телеграм: @novitckas";
+const INITIAL_WITH_SCREEN_TXT =
+  "Через меня можно голосом наполнять списки в Notion. Но для начала работы меня нужно настроить. Готовы начать настройку?";
+const INITIAL_WITHOUT_SCREEN_TXT =
+  'Через меня можно голосом наполнять списки в Notion. Но для начала работы меня нужно настроить. Чтобы начать настройку, запустите навык на устройстве с клавиатурой. Например, в приложении "Яндекс" на смартфоне.';
+const INITIAL_AFTER_RESET_TXT =
+  "Сбросила настройки навыка. Начнём настройку заново?";
+const HERE_INSTRUCTION_TXT =
+  "Я подготовила инструкцию. Настройка займёт 5-10 минут.\n" +
+  "\n" +
+  "Настройки сохранятся для всех устройств, привязанных к вашему аккаунту Яндекса.\n" +
+  "\n" +
+  'Чтобы открыть инструкцию, нажмите кнопку "Инструкция"';
+const IS_IT_TOKEN_TXT = "Это токен Notion'а?";
+const IS_IT_ARTICLE_ID_TXT = "Это id-заметки?";
+const TOKEN_SAVED_TXT = "Сохранила токен";
+const ARTICLE_ID_SAVED_TXT = "Сохранила id заметки";
+const TOKEN_SAVED_SETTING_UP_FINISHED =
+  "Сохранила токен Notion'а!\n" +
+  "\n" +
+  "Навык настроен. Теперь можно пользоваться. Просто скажите, что добавить в список.\n" +
+  "\n" +
+  'Чтобы добавить в список, не заходя в навык, скажите Алисе: "попроси добавить в список молоко"\n' +
+  "\n" +
+  'Если захотите сбросить настройки, скажите отправьте слово "reset" (с маленькой буквы).';
+
+const ARTICLE_ID_SAVED_SETTING_UP_FINISHED =
+  "Сохранила id заметки!\n" +
+  "\n" +
+  "Навык настроен. Теперь можно пользоваться. Просто скажите, что добавить в список.\n" +
+  "\n" +
+  'Чтобы добавить в список, не заходя в навык, скажите Алисе: "попроси добавить в список молоко"\n' +
+  "\n" +
+  'Если захотите сбросить настройки, скажите отправьте слово "reset" (с маленькой буквы).';
+
+// btn's texts
+const YES = "Да";
+const NO = "Нет";
+const INSTRUCTION = "Инструкция";
+const NO_ITS_ID = "Нет, это id заметки";
+const NO_ITS_TOKEN = "Нет, это токен Notion'а";
+
+const addToList = (notion, item, articleId) => {
+  return notion.blocks.children.append({
+    block_id: articleId,
+    children: [
+      {
+        object: "block",
+        type: "to_do",
+        to_do: {
+          text: [
+            {
+              type: "text",
+              text: {
+                content: item,
               },
-            ],
-            checked: false,
-          },
+            },
+          ],
+          checked: false,
         },
-      ],
-    });
-  };
-
-const getResponseForStep0Go = () => {
-  let response = {
-    text: SETTING_UP_TEXT.STEP_1,
-    buttons: [{title: YES, hide: true}, {title: NO, hide: true}]
-  }
-  let session_state = {
-    settingUp: SETTING_UP.STEP_1
-  }
-  return {response, session_state}
-}
-
-const getResponseForStep1IRegistered = () => {
-  let response = {
-    text: SETTING_UP_TEXT.STEP_2,
-    buttons: [{title: NOTION_INTEGRATIONS, url: 'https://www.notion.so/my-integrations', hide: false}, {title: DONE_NEXT, hide: false}]
-  }
-  let session_state = {
-    settingUp: SETTING_UP.STEP_2
-  }
-  return {response, session_state}
-}
-
-const getResponseForStep1No = () => {
-  let response = {
-    text: SETTING_UP_TEXT.STEP_1_1,
-    buttons: [{title: I_GO_REGISTER, url: 'https://www.notion.so/signup', hide: false}, {title: I_REGISTERED, hide: false}]
-  }
-  let session_state = {
-    settingUp: SETTING_UP.STEP_1
-  }
-  return {response, session_state}
-}
-
-const getResponseForStep2 = () => {
-  let response = {
-    text: SETTING_UP_TEXT.STEP_2,
-    buttons: [{title: I_GO_REGISTER, url: 'https://www.notion.so/signup', hide: false}, {title: I_REGISTERED, hide: false}]
-  }
-  let session_state = {
-    settingUp: SETTING_UP.STEP_2
-  }
-  return {response, session_state}
-}
-
+      },
+    ],
+  });
+};
 
 module.exports.handler = async (event, context) => {
-    const { request, session, version, meta, state } = event;
-    let response = {};
-    const userTells = request.original_utterance;
+  const { request, session, version, meta, state } = event;
+  let response = {};
+  const userTells = request.original_utterance;
+  const previousStep = state.session.previousStep;
+  const token = state.user.token;
+  const articleId = state.user.id;
+  const userTellsOnPreviousStep = state.session.previousVal;
+  const hasScreen = meta.interfaces.screen;
 
-    // Нет сохранённых данных
-    if ((!state.user.notionToken || state.user.notionNoteId) && !Object.keys(state.session).length) {
-      response.text = SETTING_UP_TEXT.STEP_0;
-      response.buttons = [{title: GO, hide: true}, {title: LATER, hide: true}]
-      let session_state = {
-        settingUp: SETTING_UP.STEP_0
+  if (userTells === "reset") {
+    response.text = INITIAL_AFTER_RESET_TXT;
+    response.buttons = [
+      { title: YES, hide: true },
+      { title: NO, hide: true },
+    ];
+
+    const session_state = {
+      previousStep: INITIAL_STEP,
+      previousVal: null,
+    };
+
+    const user_state_update = {
+      token: null,
+      id: null,
+    };
+    return { version, session, response, session_state, user_state_update };
+  }
+
+  if (userTells === "Помощь" || userTells === 'Что ты умеешь?') {
+    response.text = HELP_TXT;
+    return { version, session, response };
+  }
+
+  // Навык НЕ настроен (отсутствуют токен и id заметки).
+  if (!state.user.token || !state.user.id) {
+    // Miro стрелка "Первый раз с устройства без экрана" https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364215212991&cot=14
+    if (!hasScreen) {
+      response.text = INITIAL_WITHOUT_SCREEN_TXT;
+      return { version, session, response };
+    }
+
+    // MIRO стрелка: "Первый раз. С устройства с экраном" https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364215027652&cot=14
+    if (session.new) {
+      return getInitialWithScreenResponse();
+    }
+
+    // Пользователь пришёл отсюда https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364214922267&cot=14
+    if (previousStep === INITIAL_STEP) {
+      // https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364215382360&cot=14
+      if (userTells === YES) {
+        response.text = HERE_INSTRUCTION_TXT;
+        response.buttons = [
+          {
+            title: INSTRUCTION,
+            hide: false,
+            url: "https://kodilo.notion.site/e8da9e9e4b2545aaa163f56de7995973",
+          },
+        ];
+        const session_state = {
+          previousStep: HERE_INSTRUCTION_STEP,
+        };
+        return { version, session, response, session_state };
       }
-      return {version, session, response, session_state}
+      // https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364218739833&cot=14
+      return getInitialWithScreenResponse();
     }
 
-    switch ( state.session.settingUp ) {
-      case SETTING_UP.STEP_0:
-        if (userTells === GO) {
-          return {version, session, ...getResponseForStep0Go()}
-        }
-        if (userTells === LATER) {
-          return {version, session, response:{text: SAY_SETTING_TO_SET}}
-        }
-        break;
-      case SETTING_UP.STEP_1:
-        if (userTells === YES) {
-          return {version, session, ...getResponseForStep1IRegistered()}
-        }
-        if (userTells === NO) {
-          return {version, session, ...getResponseForStep1No()}
-        }
-        if (userTells === I_REGISTERED) {
-          return {version, session, ...getResponseForStep1IRegistered()}
-        }
-          break;
-      case SETTING_UP.STEP_2:
-
-
-
-    // Пример быстрого запуска навыка: "Алиса, попроси {название навыка} {входные данные для навыка}".
-    // Алиса запустит навык и сразу передаст в него входные параметры.
-    const isFastSkillCall = request.original_utterance && session.new
-
-    response.end_session = isFastSkillCall // После быстрого запуска сразу завершаем навык. Несколько раз было неожиданно, что воспользовался навыком.
-        // Через 5 минут ставлю таймер, а я, оказывается, всё еще в навыке.
-
-    if (!request.original_utterance || request.original_utterance === 'ping') {
-        response.text = 'Скажи, что добавить в Notion'
-        response.tts = 'Скажи , что добавить в ноушн'
-        return {version, session, response}
+    // Пользователь пришёл отсюда: https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364215382366&cot=14
+    // или отсюда: https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364215598058&cot=14
+    // или отсюда https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364216865822&cot=14
+    // вот сюда https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364215598058&cot=14
+    if (
+      previousStep === HERE_INSTRUCTION_STEP ||
+      previousStep === SETTING_UP_TOKEN_AND_ID_STEP ||
+      previousStep === ARTICLE_ID_SAVED_STEP
+    ) {
+      return getIsItTokenStep();
     }
-    const notion = new Client({
-        auth: NOTION_TOKEN,
-        });
 
-    return addToList(notion, request.original_utterance).then(() => {
-        response.text = `Добавила ${request.original_utterance} в список`
-        return {version, session, response}
-    })
-}}
+    // Пользователь пришёл отсюда https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364215598058&cot=14
+    if (previousStep === IS_IT_TOKEN_STEP) {
+      if (userTells === YES) {
+        // https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364217301284&cot=14
+        if (articleId) {
+          response.text = TOKEN_SAVED_SETTING_UP_FINISHED;
+          const session_state = {
+            previousStep: null,
+            previousVal: null,
+          };
+
+          const user_state_update = {
+            token: userTellsOnPreviousStep.token,
+          };
+
+          return {
+            version,
+            session,
+            response,
+            session_state,
+            user_state_update,
+          };
+        }
+        // https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364216759463&cot=14
+        response.text = TOKEN_SAVED_TXT;
+        const session_state = {
+          previousStep: TOKEN_SAVED_STEP,
+          previousVal: null,
+        };
+
+        const user_state_update = {
+          token: userTellsOnPreviousStep,
+        };
+
+        return { version, session, response, session_state, user_state_update };
+      }
+      if (userTells === NO_ITS_ID) {
+        // https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364554156131&cot=14
+        if (token) {
+          return getArticleIdSavedSettingUpFinishedResponse();
+        }
+        // https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364216865735&cot=14
+        response.text = ARTICLE_ID_SAVED_TXT;
+        const session_state = {
+          previousStep: ARTICLE_ID_SAVED_STEP,
+          previousVal: null,
+        };
+        const user_state_update = {
+          id: userTellsOnPreviousStep,
+        };
+        return { version, session, response, session_state, user_state_update };
+      }
+
+      // https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364216618317&cot=14
+      return getIsItTokenStep();
+    }
+
+    // Пользователь пришёл отсюда: https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364216759466&cot=14
+    if (previousStep === TOKEN_SAVED_STEP) {
+      return getIsItArticleIdStep();
+    }
+    // Пользователь пришёл отсюда: https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364216759557&cot=14
+    if (previousStep === IS_IT_ARTICLE_ID_STEP) {
+      // https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364605135373&cot=14
+      if (userTells === NO_ITS_TOKEN) {
+        response.text = TOKEN_SAVED_TXT;
+        const session_state = {
+          previousStep: TOKEN_SAVED_STEP,
+          previousVal: null,
+        };
+
+        const user_state_update = {
+          id: userTellsOnPreviousStep,
+        };
+
+        return { version, session, response, session_state, user_state_update };
+      }
+      // https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364217394216&cot=14
+      if (userTells === YES) {
+        return getArticleIdSavedSettingUpFinishedResponse();
+      }
+
+      return getIsItArticleIdStep();
+    }
+  }
+
+  function getIsItArticleIdStep() {
+    response.text = IS_IT_ARTICLE_ID_TXT;
+    response.buttons = [
+      { title: YES, hide: true },
+      { title: NO_ITS_TOKEN, hide: true },
+    ];
+    const session_state = {
+      previousStep: IS_IT_ARTICLE_ID_STEP,
+      previousVal: userTells,
+    };
+    return { version, session, response, session_state };
+  }
+
+  function getIsItTokenStep() {
+    response.text = IS_IT_TOKEN_TXT;
+    response.buttons = [
+      { title: YES, hide: true },
+      { title: NO_ITS_ID, hide: true },
+    ];
+    const session_state = {
+      previousStep: IS_IT_TOKEN_STEP,
+      previousVal: userTells,
+    };
+    return { version, session, response, session_state };
+  }
+
+  function getInitialWithScreenResponse() {
+    response.text = INITIAL_WITH_SCREEN_TXT;
+    response.buttons = [
+      { title: YES, hide: true },
+      { title: NO, hide: true },
+    ];
+    const session_state = {
+      previousStep: INITIAL_STEP,
+    };
+    return { version, session, response, session_state };
+  }
+
+  function getArticleIdSavedSettingUpFinishedResponse() {
+    response.text = ARTICLE_ID_SAVED_SETTING_UP_FINISHED;
+    const session_state = {
+      previousStep: null,
+      previousVal: null,
+    };
+    const user_state_update = {
+      id: userTellsOnPreviousStep,
+    };
+    return { version, session, response, session_state, user_state_update };
+  }
+
+  // Пример быстрого запуска навыка: "Алиса, попроси {название навыка} {входные данные для навыка}".
+  // Алиса запустит навык и сразу передаст в него входные параметры.
+  const isFastSkillCall = request.original_utterance && session.new;
+
+  response.end_session = isFastSkillCall; // После быстрого запуска сразу завершаем навык. Несколько раз было неожиданно, что воспользовался навыком.
+  // Через 5 минут ставлю таймер, а я, оказывается, всё еще в навыке.
+
+  if (!request.original_utterance || request.original_utterance === "ping") {
+    response.text = "Скажи, что добавить в Notion";
+    response.tts = "Скажи , что добавить в ноушн";
+    return { version, session, response };
+  }
+  const notion = new Client({
+    auth: token,
+  });
+
+  return addToList(notion, request.original_utterance, articleId).then(() => {
+    response.text = `Добавила ${request.original_utterance} в список`;
+    return { version, session, response };
+  });
+};
