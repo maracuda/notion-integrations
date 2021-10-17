@@ -10,10 +10,13 @@ const IS_IT_ARTICLE_ID_STEP = 6;
 
 // dialog's texts
 const HELP_TXT =
-  "Через меня можно голосом наполнять списки в Notion. Но для начала работы меня нужно настроить. Для настройки вам понадобится аккаунт в Notion. \n" +
+  "Через меня можно голосом наполнять списки в Notion.\n" +
   'Чтобы не заходя в навык добавить в список, например, молоко, скажите Алисе: "Попроси добавить в список молоко"\n' +
   "Чтобы сбросить настройки навыка, пришлите мне слово reset с маленькой буквы.\n" +
   "Если есть непреодолимые проблемы, напишите мне в телеграм: @novitckas";
+const HELP_TXT_DURING_SETTING_UP = 'Через меня можно голосом наполнять списки в Notion. Но для начала работы меня нужно настроить. Для настройки вам понадобится аккаунт в Notion.\n' +
+  'Если есть непреодолимые проблемы, напишите мне в телеграм: @novitckas \n\n' +
+  'Готовы начать настройку навыка?'
 const INITIAL_WITH_SCREEN_TXT =
   "Через меня можно голосом наполнять списки в Notion. Но для начала работы меня нужно настроить. Готовы начать настройку?";
 const INITIAL_WITHOUT_SCREEN_TXT =
@@ -106,14 +109,20 @@ module.exports.handler = async (event, context) => {
     };
     return { version, session, response, session_state, user_state_update };
   }
-
-  if (userTells === "Помощь" || userTells === 'Что ты умеешь?') {
-    response.text = HELP_TXT;
-    return { version, session, response };
-  }
-
   // Навык НЕ настроен (отсутствуют токен и id заметки).
   if (!state.user.token || !state.user.id) {
+    if (userTells.toLowerCase() === "помощь" || userTells.toLowerCase().includes('что ты умеешь')) {
+      response.text = HELP_TXT_DURING_SETTING_UP;
+      response.buttons = [
+        { title: YES, hide: true },
+      ];
+      const session_state = {
+        previousStep: INITIAL_STEP,
+      };
+      return { version, session, response, session_state };
+    }
+
+
     // Miro стрелка "Первый раз с устройства без экрана" https://miro.com/app/board/o9J_ldpPWOU=/?moveToWidget=3074457364215212991&cot=14
     if (!hasScreen) {
       response.text = INITIAL_WITHOUT_SCREEN_TXT;
@@ -300,6 +309,13 @@ module.exports.handler = async (event, context) => {
 
   response.end_session = isFastSkillCall; // После быстрого запуска сразу завершаем навык. Несколько раз было неожиданно, что воспользовался навыком.
   // Через 5 минут ставлю таймер, а я, оказывается, всё еще в навыке.
+  if (userTells.toLowerCase() === "помощь" || userTells.toLowerCase().includes('что ты умеешь')) {
+    response.text = HELP_TXT;
+    const session_state = {
+      previousStep: INITIAL_STEP,
+    };
+    return { version, session, response, session_state };
+  }
 
   if (!request.original_utterance || request.original_utterance === "ping") {
     response.text = "Скажи, что добавить в Notion";
