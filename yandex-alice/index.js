@@ -84,11 +84,14 @@ const addToList = (notion, item, articleId) => {
 module.exports.handler = async (event, context) => {
   const { request, session, version, meta, state } = event;
   let response = {};
+  const stateSession = state && state.session
+  const stateUser = state && state.user
+
   const userTells = request.original_utterance;
-  const previousStep = state.session.previousStep;
-  const token = state.user.token;
-  const articleId = state.user.id;
-  const userTellsOnPreviousStep = state.session.previousVal;
+  const previousStep = stateSession && stateSession.previousStep;
+  const userTellsOnPreviousStep = stateSession && stateSession.previousVal;
+  const token = stateUser && stateUser.token;
+  const articleId = stateUser && stateUser.id;
   const hasScreen = meta.interfaces.screen;
 
   if (userTells === "reset") {
@@ -110,7 +113,7 @@ module.exports.handler = async (event, context) => {
     return { version, session, response, session_state, user_state_update };
   }
   // Навык НЕ настроен (отсутствуют токен и id заметки).
-  if (!state.user.token || !state.user.id) {
+  if (!token|| !articleId) {
     if (userTells.toLowerCase() === "помощь" || userTells.toLowerCase().includes('что ты умеешь')) {
       response.text = HELP_TXT_DURING_SETTING_UP;
       response.buttons = [
@@ -179,7 +182,7 @@ module.exports.handler = async (event, context) => {
           };
 
           const user_state_update = {
-            token: userTellsOnPreviousStep.token,
+            token: userTellsOnPreviousStep && userTellsOnPreviousStep.token,
           };
 
           return {
