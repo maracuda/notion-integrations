@@ -80,6 +80,16 @@ const addToList = (notion, item, articleId) => {
     ],
   });
 };
+const addToDatabase = (notion, item, databaseId) => {
+  return notion.pages.create({
+    parent: {
+      database_id: databaseId,
+    },
+    properties: {
+      "name": {type: "rich_text", rich_text: item}
+    }
+  });
+};
 
 module.exports.handler = async (event, context) => {
   const { request, session, version, meta, state } = event;
